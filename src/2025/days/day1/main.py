@@ -38,7 +38,3 @@ def part2():
 if __name__ == "__main__":
 	print(part1())
 	print(part2())
-	#2118 low
-	#2031 low
-	#2028 ??
-	#5895
