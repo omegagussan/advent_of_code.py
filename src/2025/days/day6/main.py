@@ -1,6 +1,6 @@
 def part1():
     tot = 0
-    with open("input.txt") as input_file:
+    with open("sample.txt") as input_file:
         rows = input_file.read().strip().split('\n')
         cols = []
         for row in rows[:-1]:
@@ -52,17 +52,16 @@ def part2():
 
 def update_tot(op, tot, val):
     val = [v.strip() for v in val if v != '']
-    print("here", val, op)
     if op == '+':
         ints = [int(v, 10) for v in val]
         y = sum(ints)
-        print(f"adding sum {y}")
+        #print(f"adding sum {y}")
         tot += y
     elif op == '*':
         prod = 1
         for v in val:
             prod *= int(v, 10)
-        print(f"adding product {prod}")
+        #print(f"adding product {prod}")
         tot += prod
     return tot
 
