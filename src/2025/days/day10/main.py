@@ -1,4 +1,6 @@
-import itertools
+import pulp
+import numpy as np
+
 from collections import deque
 from dataclasses import dataclass
 from typing import Tuple, List
@@ -61,17 +63,67 @@ def bfs_min_presses(machine: Machine) -> int:
 
 	raise ValueError("No solution found for machine!")
 
+def exact_solver_min_presses(machine):
+	num_buttons = len(machine.buttons)
+	num_indices = len(machine.joltages)
+
+	# Build the B matrix
+	B = np.zeros((num_indices, num_buttons), dtype=int)
+	for j, button in enumerate(machine.buttons):
+		for idx in button:
+			B[idx, j] = 1
+
+	# Define ILP problem
+	prob = pulp.LpProblem("MinPresses", pulp.LpMinimize)
+
+	# Variables: x_j >= 0 integer
+	x = [pulp.LpVariable(f"x{j}", lowBound=0, cat='Integer') for j in range(num_buttons)]
+
+	# Objective: minimize total presses
+	prob += pulp.lpSum(x)
+
+	# Constraints: B @ x == target
+	for i in range(num_indices):
+		prob += pulp.lpSum(B[i, j] * x[j] for j in range(num_buttons)) == machine.joltages[i]
+
+	# Solve
+	prob.solve(pulp.PULP_CBC_CMD(msg=False))
+
+	if prob.status == 1:  # Optimal
+		solution = [int(v.value()) for v in x]
+		total_presses = sum(solution)
+		return total_presses, solution
+	else:
+		return None, None
+
+
 def part1():
 	with open("input.txt") as input_file:
 		machines = parse_machines(input_file)
 		total_presses = 0
 		for machine in machines:
-			print("Solving machine with buttons:", machine.buttons)
+			print("Solving machine with buttons", machine.buttons)
 			presses = bfs_min_presses(machine)
 			print(f"Machine completed in {presses} presses")
 			total_presses += presses
 		print("Total presses:", total_presses)
 		return total_presses
 
+
+def part2():
+	with open("input.txt") as input_file:
+		machines = parse_machines(input_file)
+		total_presses = 0
+		for machine in machines:
+			print("Solving machine with buttons:", machine.buttons)
+			print("and joltages", machine.joltages)
+			presses, _ = exact_solver_min_presses(machine)
+			print(f"Machine completed in {presses} presses")
+			total_presses += presses
+		print("Total presses:", total_presses)
+		return total_presses
+
+
 if __name__ == "__main__":
 	part1()
+	part2()
