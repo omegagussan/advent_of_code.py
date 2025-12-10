@@ -1,9 +1,8 @@
 import pulp
 import numpy as np
-
 from collections import deque
 from dataclasses import dataclass
-from typing import Tuple, List
+from typing import List, Tuple
 
 @dataclass
 class Machine:
@@ -12,117 +11,60 @@ class Machine:
 	joltages: List[int]
 
 def parse_machines(input_file):
-	data = input_file.read().strip().split('\n')
-	machines: list[Machine] = []
-	for line in data:
-		# Indicator light diagram
-		d_string = line[line.index('[') + 1:line.index(']')]
-		diagram = [c == '#' for c in d_string]
-
-		# Button schematics
-		schematics = []
-		schematic_part = line[line.index(']') + 1:line.index('{')].strip()
-		for s in schematic_part.split(' '):
-			if s:
-				schematic_tuple = tuple(int(x, 10) for x in s[1: -1].split(','))
-				schematics.append(schematic_tuple)
-
-		# Joltage requirements
-		joltages = []
-		joltage_part = line[line.index('{') + 1:line.index('}')]
-		for j in joltage_part.split(','):
-			joltages.append(int(j, 10))
-
-		machine = Machine(state=diagram, buttons=schematics, joltages=joltages)
-		machines.append(machine)
+	machines = []
+	for line in input_file.read().strip().split('\n'):
+		diagram = [c == '#' for c in line[line.index('[') + 1:line.index(']')]]
+		schematics = [tuple(map(int, s[1:-1].split(','))) for s in line[line.index(']') + 1:line.index('{')].strip().split() if s]
+		joltages = list(map(int, line[line.index('{') + 1:line.index('}')].split(',')))
+		machines.append(Machine(state=diagram, buttons=schematics, joltages=joltages))
 	return machines
 
 def bfs_min_presses(machine: Machine) -> int:
-	start = tuple([False] * len(machine.state))
-	target = tuple(machine.state)
-
+	start, target = tuple([False] * len(machine.state)), tuple(machine.state)
 	if start == target:
 		return 0
 
-	seen = {start}
-	queue = deque([(start, 0)])  # (state_tuple, presses)
-
+	queue, seen = deque([(start, 0)]), {start}
 	while queue:
 		state, presses = queue.popleft()
 		if state == target:
 			return presses
-
 		for button in machine.buttons:
-			new_state = list(state)
-			for idx in button:
-				new_state[idx] = not new_state[idx]
-			new_tuple = tuple(new_state)
-			if new_tuple not in seen:
-				seen.add(new_tuple)
-				queue.append((new_tuple, presses + 1))
-
+			new_state = tuple(s ^ (i in button) for i, s in enumerate(state))
+			if new_state not in seen:
+				seen.add(new_state)
+				queue.append((new_state, presses + 1))
 	raise ValueError("No solution found for machine!")
 
-def exact_solver_min_presses(machine):
-	num_buttons = len(machine.buttons)
-	num_indices = len(machine.joltages)
-
-	# Build the B matrix
-	B = np.zeros((num_indices, num_buttons), dtype=int)
+def exact_solver_min_presses(machine: Machine):
+	B = np.zeros((len(machine.joltages), len(machine.buttons)), dtype=int)
 	for j, button in enumerate(machine.buttons):
-		for idx in button:
-			B[idx, j] = 1
+		B[[idx for idx in button], j] = 1
 
-	# Define ILP problem
 	prob = pulp.LpProblem("MinPresses", pulp.LpMinimize)
-
-	# Variables: x_j >= 0 integer
-	x = [pulp.LpVariable(f"x{j}", lowBound=0, cat='Integer') for j in range(num_buttons)]
-
-	# Objective: minimize total presses
+	x = [pulp.LpVariable(f"x{j}", lowBound=0, cat='Integer') for j in range(len(machine.buttons))]
 	prob += pulp.lpSum(x)
+	for i in range(len(machine.joltages)):
+		prob += pulp.lpSum(B[i, j] * x[j] for j in range(len(machine.buttons))) == machine.joltages[i]
 
-	# Constraints: B @ x == target
-	for i in range(num_indices):
-		prob += pulp.lpSum(B[i, j] * x[j] for j in range(num_buttons)) == machine.joltages[i]
-
-	# Solve
 	prob.solve(pulp.PULP_CBC_CMD(msg=False))
-
-	if prob.status == 1:  # Optimal
-		solution = [int(v.value()) for v in x]
-		total_presses = sum(solution)
-		return total_presses, solution
-	else:
-		return None, None
-
+	if prob.status == 1:
+		return sum(int(v.value()) for v in x), [int(v.value()) for v in x]
+	return None, None
 
 def part1():
 	with open("input.txt") as input_file:
 		machines = parse_machines(input_file)
-		total_presses = 0
-		for machine in machines:
-			print("Solving machine with buttons", machine.buttons)
-			presses = bfs_min_presses(machine)
-			print(f"Machine completed in {presses} presses")
-			total_presses += presses
+		total_presses = sum(bfs_min_presses(machine) for machine in machines)
 		print("Total presses:", total_presses)
 		return total_presses
-
 
 def part2():
 	with open("input.txt") as input_file:
 		machines = parse_machines(input_file)
-		total_presses = 0
-		for machine in machines:
-			print("Solving machine with buttons:", machine.buttons)
-			print("and joltages", machine.joltages)
-			presses, _ = exact_solver_min_presses(machine)
-			print(f"Machine completed in {presses} presses")
-			total_presses += presses
+		total_presses = sum(exact_solver_min_presses(machine)[0] for machine in machines)
 		print("Total presses:", total_presses)
 		return total_presses
-
 
 if __name__ == "__main__":
 	part1()
