@@ -1,40 +1,22 @@
+import re
 
 
 def part1():
-	with open("input.txt") as input_file:
-		zeroes = 0
-		curr = 50
-		rows = input_file.read().strip().split('\n')
-		for row in rows:
-			if row[0] == 'L':
-				curr -= int(row[1:], 10)
-				curr = curr % 100
-			else:
-				curr += int(row[1:], 10)
-				curr = curr % 100
-			#print(curr)
-			if curr == 0:
-				zeroes += 1
-	return zeroes
+	shapes = []
+	with open("input.txt") as f:
+		*shapes_string, requirements = re.split(r'\r?\n\r?\n', f.read().strip())
+		for shape in shapes_string:
+			chars = "".join(gift.splitlines()[1:])
+			shapes.append(chars.count('#'))
 
-#aka 0x434C49434B
-def part2():
-	with open("input.txt") as input_file:
-		zeroes = 0
-		curr = 50
-		rows = input_file.read().strip().split('\n')
+		fits = 0
+		for area in requirements.splitlines():
+			mx, my, *occurrences = (int(x) for x in re.split(r'[x: ]+', area))
+			size = sum(cnt * test for cnt, test in zip(occurrences, shapes))
+			if size < mx * my:
+				fits += 1
 
-	for row in rows:
-		direction = row[0]
-		steps = int(row[1:], 10)
-
-		for _ in range(steps):
-			curr = (curr + (1 if direction == 'R' else -1)) % 100
-			if curr == 0:
-				zeroes += 1
-
-	return zeroes
+	return fits
 
 if __name__ == "__main__":
 	print(part1())
-	print(part2())
